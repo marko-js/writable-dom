@@ -14,7 +14,7 @@
   </a>
   <!-- Coverage -->
   <a href="https://codecov.io/gh/marko-js/writable-dom">
-    <img src="https://codecov.io/gh/marko-js/writable-dom/branch/master/graph/badge.svg?token=06lKJj8my3" alt="Code coverage"/>
+    <img src="https://codecov.io/gh/marko-js/writable-dom/branch/main/graph/badge.svg?token=06lKJj8my3" alt="Code coverage"/>
   </a>
   <!-- NPM Version -->
   <a href="https://npmjs.org/package/writable-dom">
