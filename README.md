@@ -79,7 +79,7 @@ try {
 }
 ```
 
-If you only support browsers that provide [`WritableStream's`](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream) you can have this module give you a `WritableStream` instance by calling the top level api with `new`.
+If you only support browsers that provide [`WritableStream's`](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream) you can have this module give you a `WritableStream` instance by calling the top level api with [`new`](#user-content-new-writable-dom).
 
 ```js
 import WritableDOMStream from "writable-dom";
@@ -94,14 +94,18 @@ await res.body
 
 # API
 
-## `writableDOM(target: ParentNode, previousSibling?: ChildNode | null): Writable`
-
-Creates a new [`Writable`](<#%60Writable::write(html:%20string):%20void%60>) instance that allows you to write HTML into the `target` element.
+<h2 id="writable-dom">
+  <pre><code>writableDOM(
+  target: ParentNode,
+  previousSibling?: ChildNode | null
+): Writable</code></pre>
+</h2>
+Creates a new `Writable` instance that allows you to write HTML into the `target` element.
 You can also provide `previousSibling` to have all written HTML be placed _after_ that node.
 
 ### `Writable::write(html: string): void`
 
-Writes a partial chunk of HTML content to the target element.
+Writes a partial chunk of HTML content to the `target` element.
 
 ### `Writable::close(): Promise<void>`
 
@@ -111,11 +115,16 @@ Returns a promise that will resolve when all blocking assets have loaded and the
 ### `Writable::abort(err: Error): void`
 
 Prevents any additional HTML from being written into the document and aborts any blocking assets.
-You should not call [`write`](<#%60Writable::write(html:%20string):%20void%60>) after calling `abort`.
+You should not call `write` after calling `abort`.
 
-## `new WritableDOM(target: ParentNode, previousSibling?: ChildNode | null): WritableStream<string>`
+<h2 id="new-writable-dom">
+  <pre><code>new WritableDOM(
+  target: ParentNode,
+  previousSibling?: ChildNode | null
+): WritableStream<string></code></pre>
+</h2>
 
-If you call the top level api with the `new` keyword, instead of returning a custom [Writable](<#%60Writable::write(html:%20string):%20void%60>) it will return a [WritableStream<string>](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream).
+If you call the top level api with the `new` keyword, instead of returning a custom `Writable`, it will return a [WritableStream<string>](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream).
 
 Ideally this would be the only api exposed by this module, but as it stands browser support for `WritableStream` is limited.
 
