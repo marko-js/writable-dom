@@ -1,0 +1,10 @@
+Embedded App.
+<script>
+  window.inlineScriptValues = [];
+</script>
+<script src="/external.js?value=a"></script>
+<link href="/external.js?value=c" rel="preload" as="script" />
+<script>
+  inlineScriptValues.push(0, scriptValues.at(-1));
+</script>
+<script src="/external.js?value=b"></script>

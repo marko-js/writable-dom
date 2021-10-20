@@ -1,0 +1,13 @@
+Embedded App.
+<script>
+  window.inlineScriptValues = [];
+</script>
+<link rel="stylesheet" href="/external.css?color=rgb(255, 0, 0)" /><link
+  href="/external.css?color=rgb(0,%200,%20255)"
+  rel="preload"
+  as="style"
+/>
+<script>
+  inlineScriptValues.push(getComputedStyle(document.body).color);
+</script>
+<link rel="stylesheet" href="/external.css?color=rgb(0, 255, 0)" />

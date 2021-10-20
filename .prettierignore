@@ -1,0 +1,8 @@
+.vscode
+.nyc_output
+package.json
+package-lock.json
+node_modules
+coverage
+dist
+__snapshots__

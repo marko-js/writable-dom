@@ -1,0 +1,4 @@
+{
+  "*.ts": ["eslint -f codeframe --fix", "prettier --write"],
+  "*{.js,.json,.md,.yml,rc}": ["prettier --write"]
+}

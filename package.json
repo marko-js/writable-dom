@@ -1,0 +1,71 @@
+{
+  "name": "writable-dom",
+  "description": "Utility to stream HTML content into a live document.",
+  "version": "1.0.0",
+  "author": "Dylan Piercey <dpiercey@ebay.com>",
+  "bugs": "https://github.com/marko-js/writable-dom/issues",
+  "devDependencies": {
+    "@commitlint/cli": "^13.2.0",
+    "@commitlint/config-conventional": "^13.2.0",
+    "@types/istanbul-lib-instrument": "^1.7.4",
+    "@types/mocha": "^9.0.0",
+    "@types/node": "^16.10.2",
+    "@types/prettier": "^2.4.1",
+    "@typescript-eslint/eslint-plugin": "^4.33.0",
+    "@typescript-eslint/parser": "^4.33.0",
+    "codecov": "^3.8.3",
+    "esbuild": "^0.13.4",
+    "esbuild-register": "^3.0.0",
+    "eslint": "^7.32.0",
+    "eslint-config-prettier": "^8.3.0",
+    "fast-glob": "^3.2.7",
+    "fixpack": "^4.0.0",
+    "husky": "^7.0.2",
+    "istanbul-lib-instrument": "^5.0.4",
+    "lint-staged": "^11.2.0",
+    "mocha": "^9.1.2",
+    "mocha-snap": "^4.0.2",
+    "nyc": "^15.1.0",
+    "playwright": "^1.15.1",
+    "prettier": "^2.4.1",
+    "semantic-release": "^18.0.0",
+    "typescript": "^4.4.3"
+  },
+  "files": [
+    "dist",
+    "!**/__tests__",
+    "!**/*.tsbuildinfo"
+  ],
+  "homepage": "https://github.com/marko-js/writable-dom",
+  "keywords": [
+    "dom",
+    "html",
+    "parser",
+    "streaming",
+    "writable"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marko-js/writable-dom"
+  },
+  "scripts": {
+    "build": "tsc -b && node -r esbuild-register build",
+    "ci:report": "codecov",
+    "ci:test": "nyc npm run mocha -- --forbid-pending --forbid-only",
+    "format": "npm run lint:eslint -- --fix && npm run lint:prettier -- --write && (fixpack || true)",
+    "lint": "tsc -b && npm run lint:eslint && npm run lint:prettier -- -l && fixpack",
+    "lint:eslint": "eslint -f visualstudio .",
+    "lint:prettier": "prettier '**/*{.ts,.js,.json,.md,.yml,rc}'",
+    "mocha": "NODE_ENV=test mocha 'src/**/__tests__/*.test.ts'",
+    "prepare": "husky install",
+    "prepublishOnly": "npm run build",
+    "release": "semantic-release",
+    "report": "open ./coverage/lcov-report/index.html",
+    "test": "npm run mocha -- --watch",
+    "test:inspect": "npm test -- --inspect",
+    "test:update": "npm run mocha -- --update"
+  }
+}
