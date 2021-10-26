@@ -14,7 +14,7 @@ export = function writableDOM(
   }
 
   const doc = document.implementation.createHTMLDocument("");
-  doc.write("<template>");
+  doc.write("<!DOCTYPE html><body><template>");
   const root = (doc.body.firstChild as HTMLTemplateElement).content;
   const walker = doc.createTreeWalker(root);
   const targetNodes = new WeakMap<Node, Node>([[root, target]]);
