@@ -118,3 +118,29 @@ After blocking.`,
     },
   ])
 );
+
+it(
+  "inline-scripts",
+  fixture([
+    "Embedded App.",
+    '<script>scriptValues = ["a',
+    '", "b"];</script>',
+    "After Script.",
+    async (page) => {
+      assert.deepStrictEqual(await page.evaluate(() => scriptValues), [
+        "a",
+        "b",
+      ]);
+    },
+  ])
+);
+
+it(
+  "inline-styles",
+  fixture([
+    "Embedded App. ",
+    "<style> h1 { colo",
+    "r: red; } </style>",
+    " After Styles.",
+  ])
+);
