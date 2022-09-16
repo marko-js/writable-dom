@@ -6,6 +6,8 @@ declare const inlineScriptValues: unknown[];
 
 it("stream-text", fixture(["Hello", "World"]));
 
+it("stream-elements", fixture(["<h1>H1</h1>", "<h2>H2</h2>", "<h3>H3</h3>"]));
+
 it(
   "blocking-scripts",
   fixture([
@@ -116,5 +118,31 @@ After blocking.`,
         "e",
       ]);
     },
+  ])
+);
+
+it(
+  "inline-scripts",
+  fixture([
+    "Embedded App.",
+    '<script>scriptValues = ["a',
+    '", "b"];</script>',
+    "After Script.",
+    async (page) => {
+      assert.deepStrictEqual(await page.evaluate(() => scriptValues), [
+        "a",
+        "b",
+      ]);
+    },
+  ])
+);
+
+it(
+  "inline-styles",
+  fixture([
+    "Embedded App. ",
+    "<style> h1 { colo",
+    "r: red; } </style>",
+    " After Styles.",
   ])
 );

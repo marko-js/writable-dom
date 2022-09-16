@@ -23,12 +23,13 @@ export = function writableDOM(
   let scanNode: Node | null = null;
   let resolve: void | (() => void);
   let isBlocked = false;
+  let inlineHostNode: Node | null = null;
 
   return {
     write(chunk: string) {
       doc.write(chunk);
 
-      if (pendingText) {
+      if (pendingText && !inlineHostNode) {
         // When we left on text, it's possible more text was written to the same node.
         // here we copy in the final text content from the detached dom to the live dom.
         (targetNodes.get(pendingText) as Text).data = pendingText.data;
@@ -42,6 +43,8 @@ export = function writableDOM(
       }
     },
     close() {
+      appendInlineTextIfNeeded(pendingText, inlineHostNode);
+
       return isBlocked
         ? new Promise<void>((_) => (resolve = _))
         : Promise.resolve();
@@ -68,6 +71,7 @@ export = function writableDOM(
     } else {
       while ((node = walker.nextNode())) {
         const clone = document.importNode(node, false);
+        const previousPendingText = pendingText;
         if (node.nodeType === Node.TEXT_NODE) {
           pendingText = node as Text;
         } else {
@@ -86,10 +90,17 @@ export = function writableDOM(
         const parentNode = targetNodes.get(node.parentNode!)!;
         targetNodes.set(node, clone);
 
-        if (parentNode === target) {
-          target.insertBefore(clone, nextSibling);
+        if (isInlineHost(parentNode!)) {
+          inlineHostNode = parentNode;
         } else {
-          parentNode.appendChild(clone);
+          appendInlineTextIfNeeded(previousPendingText, inlineHostNode);
+          inlineHostNode = null;
+
+          if (parentNode === target) {
+            target.insertBefore(clone, nextSibling);
+          } else {
+            parentNode.appendChild(clone);
+          }
         }
 
         // Start walking for preloads.
@@ -177,4 +188,21 @@ function getPreloadLink(node: any) {
   }
 
   return link;
+}
+
+function appendInlineTextIfNeeded(
+  pendingText: Text | null,
+  inlineTextHostNode: Node | null
+) {
+  if (pendingText && inlineTextHostNode) {
+    inlineTextHostNode.appendChild(pendingText);
+  }
+}
+
+function isInlineHost(node: Node) {
+  const { tagName } = node as Element;
+  return (
+    (tagName === "SCRIPT" && !(node as HTMLScriptElement).src) ||
+    tagName === "STYLE"
+  );
 }
