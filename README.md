@@ -38,17 +38,35 @@ npm install writable-dom
 
 # How it works
 
-This module allows you to write multiple partial chunks of raw HTML into an existing element in the DOM.
+This module allows you to write a stream of raw HTML chunks into an existing element in the DOM.
 Each chunk of HTML is handled in a way that is similar to how browsers process and display it.
 
 Specifically blocking assets, including stylesheets and scripts, prevent adding newly parsed nodes to the target element.
-This means that there is no flash of unstyled, and that scripts execution order follows the same rules as normal.
+This means that there are no flashes of unstyled content, and that scripts execution order follows the same rules as normal.
 
 On top of that this module will look ahead for additional assets to preload while it is blocked.
 
 # Examples
 
 The following examples fetch an HTML stream and place the content into a `#root` container element.
+
+```js
+import WritableDOMStream from "writable-dom";
+
+const res = await fetch("http://ebay.com");
+const myEl = document.getElementById("root");
+
+await res.body
+  .pipeThrough(new TextDecoderStream())
+  .pipeTo(new WritableDOMStream(myEl));
+```
+
+The presented example relies on the [`WritableStream`](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream)s API.
+
+An alternative API is also available to use in case legacy browsers not implementing `WritableStream`s need to be supported.
+
+The following is a version of the previous example implemented using the alternative API.
+
 
 ```js
 import writableDOM from "writable-dom";
@@ -79,54 +97,53 @@ try {
 }
 ```
 
-If you only support browsers that provide [`WritableStream's`](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream) you can have this module give you a `WritableStream` instance by calling the top level api with [`new`](#user-content-new-writable-dom).
-
-```js
-import WritableDOMStream from "writable-dom";
-
-const res = await fetch("http://ebay.com");
-const myEl = document.getElementById("root");
-
-await res.body
-  .pipeThrough(new TextDecoderStream())
-  .pipeTo(new WritableDOMStream(myEl)); // Much cleaner... Firefox it's time to support this!
-```
-
 # API
 
-<h2 id="writable-dom">
-  <pre><code>writableDOM(
+The module exposes a single default constructor function, once imported it can be used via one of the two following APIs.
+
+## `WritableStream` API
+
+```ts
+import writableDOMStream from "writable-dom";
+
+new WritableDOMStream(
   target: ParentNode,
   previousSibling?: ChildNode | null
-): Writable</code></pre>
-</h2>
-Creates a new `Writable` instance that allows you to write HTML into the `target` element.
+): WritableStream
+```
+
+By instantiating a new object via the `new` keyword on the constructor function, the generated object will be of type [WritableStream\<string\>](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream), which you can for example combine with your original stream via the [`pipeTo`](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/pipeTo) method.
+
 You can also provide `previousSibling` to have all written HTML be placed _after_ that node.
 
-### `Writable::write(html: string): void`
+## `Writable` API
 
-Writes a partial chunk of HTML content to the `target` element.
+```ts
+import writableDOM from "writable-dom";
 
-### `Writable::close(): Promise<void>`
-
-Indicates that no additional HTML is going to be written.
-Returns a promise that will resolve when all blocking assets have loaded and the content is being displayed in the document.
-
-### `Writable::abort(err: Error): void`
-
-Prevents any additional HTML from being written into the document and aborts any blocking assets.
-You should not call `write` after calling `abort`.
-
-<h2 id="new-writable-dom">
-  <pre><code>new WritableDOM(
+writableDOM(
   target: ParentNode,
   previousSibling?: ChildNode | null
-): WritableStream<string></code></pre>
-</h2>
+): Writable
+```
 
-If you call the top level api with the `new` keyword, instead of returning a custom `Writable`, it will return a [WritableStream<string>](https://developer.mozilla.org/en-US/docs/Web/API/WritableStream).
+Calling the function directly creates a new `Writable` object which you can use to manually write HTML into the `target` element.
 
-Ideally this would be the only api exposed by this module, but as it stands browser support for `WritableStream` is limited.
+Again, you can also provide `previousSibling` to have all written HTML be placed _after_ that node.
+
+A `Writable` object provides the following methods:
+
+- `write(html: string): void`\
+  Writes a partial chunk of HTML content into the `target` element.
+
+- `close(): Promise<void>`\
+  Indicates that no additional HTML is going to be written.
+  Returns a promise that will resolve when all blocking assets have loaded and the content is being displayed in the document.
+  You should not call `write` after calling `close`.
+
+- `abort(err: Error): void`
+  Prevents any additional HTML from being written into the document and aborts any blocking assets.
+  You should not call `write` after calling `abort`.
 
 # Code of Conduct
 
