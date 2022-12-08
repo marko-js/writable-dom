@@ -67,7 +67,6 @@ An alternative API is also available to use in case legacy browsers not implemen
 
 The following is a version of the previous example implemented using the alternative API.
 
-
 ```js
 import writableDOM from "writable-dom";
 
