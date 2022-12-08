@@ -4,6 +4,37 @@ type Writable = {
   close(): Promise<void>;
 };
 
+const createHTMLDocument = () => document.implementation.createHTMLDocument("");
+let createDocument = (
+  target: ParentNode,
+  nextSibling: ChildNode | null
+): Document => {
+  const testDoc = createHTMLDocument();
+  testDoc.write("<script>");
+  /**
+   * Safari and potentially other browsers strip script tags from detached documents.
+   * If that's the case we'll fallback to an iframe implementation.
+   */
+  createDocument = testDoc.scripts.length
+    ? createHTMLDocument
+    : (target, nextSibling) => {
+        const frame = document.createElement("iframe");
+        frame.src = "";
+        frame.style.display = "none";
+        target.insertBefore(frame, nextSibling);
+        const doc = frame.contentDocument!;
+        const { close } = doc;
+        doc.close = () => {
+          target.removeChild(frame);
+          close.call(doc);
+        };
+
+        return doc;
+      };
+
+  return createDocument(target, nextSibling);
+};
+
 export = function writableDOM(
   this: unknown,
   target: ParentNode,
@@ -13,12 +44,12 @@ export = function writableDOM(
     return new WritableStream(writableDOM(target, previousSibling));
   }
 
-  const doc = document.implementation.createHTMLDocument("");
+  const nextSibling = previousSibling ? previousSibling.nextSibling : null;
+  const doc = createDocument(target, nextSibling);
   doc.write("<!DOCTYPE html><body><template>");
   const root = (doc.body.firstChild as HTMLTemplateElement).content;
   const walker = doc.createTreeWalker(root);
   const targetNodes = new WeakMap<Node, Node>([[root, target]]);
-  const nextSibling = previousSibling ? previousSibling.nextSibling : null;
   let pendingText: Text | null = null;
   let scanNode: Node | null = null;
   let resolve: void | (() => void);
