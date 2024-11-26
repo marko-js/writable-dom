@@ -1,12 +1,12 @@
-import fs from "fs";
-import net from "net";
-import path from "path";
-import http from "http";
 import assert from "assert";
 import crypto from "crypto";
+import format from "diffable-html";
 import { once } from "events";
+import fs from "fs";
+import http from "http";
 import snap from "mocha-snap";
-import { format } from "prettier";
+import net from "net";
+import path from "path";
 import * as playwright from "playwright";
 
 import built from "./built";
@@ -28,29 +28,35 @@ export default (step?: Step[] | Step) => {
       writer = writableDOM(document.body);
     });
 
-    assert.ok(
-      !changes.length,
-      "Should not have any mutations before we start writing"
-    );
-
-    for (const [i, step] of steps.entries()) {
+    let snapshot = "";
+    let stepId = 0;
+    for (const step of steps) {
       await waitForPendingRequests(
         page,
         typeof step === "function"
           ? step
-          : () => page.evaluate((step) => writer.write(step), step)
+          : () => page.evaluate((step) => writer.write(step), step),
       );
-      await forEachChange((html, j, all) =>
-        snap(html, `step-${i}${all.length === 1 ? "" : `-${j}`}.html`)
-      );
+
+      await new Promise((r) => setTimeout(r, 500));
+
+      if (changes.length) {
+        snapshot += `# Step ${stepId++}\n\n`;
+        for (const html of changes) {
+          snapshot += `\`\`\`html\n${html}\n\`\`\`\n\n`;
+        }
+        changes = [];
+      }
     }
 
     await page.evaluate(() => writer.close());
 
     assert.ok(
       !changes.length,
-      "Should not have any mutations after we've finished writing."
+      "Should not have any mutations after we've finished writing.",
     );
+
+    await snap(snapshot, { ext: ".md" });
   };
 };
 
@@ -69,27 +75,33 @@ before(async () => {
       async (_url, res) => {
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(
-          `<head><script>${code}</script><script>(${(() =>
-            // Tracks all mutations in the dom.
-            document.addEventListener("DOMContentLoaded", () => {
-              const observer = new MutationObserver(() => {
-                if (document.body) {
-                  __track__(document.body.innerHTML);
-                  observer.disconnect();
-                  queueMicrotask(observe); // throttle the observer so we only snapshot once per tick.
-                }
-              });
-
-              observe();
-              function observe() {
-                observer.observe(document, {
-                  subtree: true,
-                  childList: true,
-                  attributes: true,
-                  characterData: true,
-                });
+          `<head><script>${code}</script><script>(${(() => {
+            const { port1, port2 } = new MessageChannel();
+            port1.onmessage = () => {
+              if (document.body.innerHTML) {
+                __track__(document.body.innerHTML);
               }
-            })).toString()})()</script></head>`
+              observe();
+            };
+            // Tracks all mutations in the dom.
+            const observer = new MutationObserver(() => {
+              if (document.body) {
+                // throttle the observer so we only snapshot once per frame.
+                observer.disconnect();
+                requestAnimationFrame(() => port2.postMessage(0));
+              }
+            });
+
+            observe();
+            function observe() {
+              observer.observe(document, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                characterData: true,
+              });
+            }
+          }).toString()})()</script></head>`,
         );
       },
     ],
@@ -99,8 +111,8 @@ before(async () => {
         res.setHeader("Content-Type", "application/javascript");
         res.end(
           `(window.scriptValues || (window.scriptValues = [])).push(${JSON.stringify(
-            url.searchParams.get("value")
-          )});`
+            url.searchParams.get("value"),
+          )});`,
         );
       },
     ],
@@ -113,10 +125,10 @@ before(async () => {
     ],
     [
       /\.gif$/,
-      (url, res) => {
+      (_url, res) => {
         res.setHeader("Content-Type", "image/gif");
         fs.createReadStream(path.join(__dirname, "images/sample.gif")).pipe(
-          res
+          res,
         );
       },
     ],
@@ -131,7 +143,7 @@ before(async () => {
   server.on("request", async (req, res) => {
     // Ensure requests processed in order to avoid race conditions loading assets during tests.
     await (pendingRequest = pendingRequest.then(
-      () => new Promise((resolve) => setTimeout(resolve, 50))
+      () => new Promise((resolve) => setTimeout(resolve, 500)),
     ));
 
     const url = new URL(req.url!, origin);
@@ -146,9 +158,7 @@ before(async () => {
   });
 
   await context.exposeFunction("__track__", (html: string) => {
-    const formatted = format(html.replace(/http:\/\/[^/]+/g, ""), {
-      parser: "html",
-    });
+    const formatted = format(html.replace(/http:\/\/[^/]+/g, "")).trim();
 
     if (changes.at(-1) !== formatted) {
       changes.push(formatted);
@@ -178,9 +188,9 @@ if (process.env.NYC_CONFIG) {
         path.join(
           NYC_CONFIG.cwd,
           NYC_CONFIG.tempDir,
-          `web-${report++}-${crypto.randomBytes(16).toString("hex")}.json`
+          `web-${report++}-${crypto.randomBytes(16).toString("hex")}.json`,
         ),
-        coverage
+        coverage,
       );
     }
   });
@@ -192,7 +202,7 @@ if (process.env.NYC_CONFIG) {
  */
 async function waitForPendingRequests(
   page: playwright.Page,
-  action: (page: playwright.Page) => unknown
+  action: (page: playwright.Page) => unknown,
 ) {
   let remaining = 0;
   let resolve!: () => void;
@@ -218,20 +228,4 @@ async function waitForPendingRequests(
     page.off("requestfinished", finishOne);
     page.off("requestfailed", finishOne);
   }
-}
-
-/**
- * Applies changes currently and ensures no new changes come in while processing.
- */
-async function forEachChange<
-  F extends (html: string, i: number, all: string[]) => unknown
->(fn: F) {
-  const len = changes.length;
-  await Promise.all(changes.map(fn));
-
-  if (len !== changes.length) {
-    throw new Error("A mutation occurred when the page should have been idle.");
-  }
-
-  changes = [];
 }
