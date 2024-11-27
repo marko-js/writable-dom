@@ -3,5 +3,5 @@
   "extension": ["js", "ts"],
   "enable-source-maps": true,
   "watchFiles": ["src/**/*.ts"],
-  "require": ["esbuild-register", "mocha-snap"]
+  "require": ["tsx", "mocha-snap"]
 }

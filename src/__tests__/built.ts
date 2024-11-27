@@ -1,7 +1,7 @@
-import fs from "fs";
-import path from "path";
 import { transform } from "esbuild";
+import fs from "fs";
 import { createInstrumenter } from "istanbul-lib-instrument";
+import path from "path";
 
 /**
  * Builds writable dom for the browser so it can be inlined in playwright.
@@ -17,7 +17,7 @@ export default (async () => {
       format: "iife",
       globalName: "writableDOM",
       sourcemap: process.env.NYC_CONFIG ? "external" : "inline",
-    }
+    },
   );
 
   if (process.env.NYC_CONFIG) {
@@ -25,10 +25,10 @@ export default (async () => {
     return `${instrumenter.instrumentSync(
       code,
       sourcefile,
-      JSON.parse(map)
+      JSON.parse(map),
     )}\n//#sourceMappingURL=data:application/json;charset=utf-8;base64,${Buffer.from(
       JSON.stringify(instrumenter.lastSourceMap()),
-      "utf-8"
+      "utf-8",
     ).toString("base64")}`;
   }
 

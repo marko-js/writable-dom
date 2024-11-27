@@ -7,7 +7,7 @@ type Writable = {
 const createHTMLDocument = () => document.implementation.createHTMLDocument("");
 let createDocument = (
   target: ParentNode,
-  nextSibling: ChildNode | null
+  nextSibling: ChildNode | null,
 ): Document => {
   const testDoc = createHTMLDocument();
   testDoc.write("<script>");
@@ -38,7 +38,7 @@ let createDocument = (
 export = function writableDOM(
   this: unknown,
   target: ParentNode,
-  previousSibling?: ChildNode | null
+  previousSibling?: ChildNode | null,
 ): Writable | WritableStream<string> {
   if (this instanceof writableDOM) {
     return new WritableStream(writableDOM(target, previousSibling));
@@ -147,7 +147,7 @@ export = function writableDOM(
 } as {
   new (
     target: ParentNode,
-    previousSibling?: ChildNode | null
+    previousSibling?: ChildNode | null,
   ): WritableStream<string>;
   (target: ParentNode, previousSibling?: ChildNode | null): Writable;
 };
@@ -225,7 +225,7 @@ function getPreloadLink(node: any) {
 
 function appendInlineTextIfNeeded(
   pendingText: Text | null,
-  inlineTextHostNode: Node | null
+  inlineTextHostNode: Node | null,
 ) {
   if (pendingText && inlineTextHostNode) {
     inlineTextHostNode.appendChild(pendingText);

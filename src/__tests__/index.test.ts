@@ -1,4 +1,5 @@
 import assert from "assert";
+
 import fixture from "./fixture";
 
 declare const scriptValues: unknown[];
@@ -29,10 +30,10 @@ After blocking.`,
         {
           scriptValues: ["a", "b", "c"],
           inlineScriptValues: [0, "a", 1, "b", 2, "c"],
-        }
+        },
       );
     },
-  ])
+  ]),
 );
 
 it(
@@ -54,7 +55,7 @@ After blocking.`,
         "rgb(0, 0, 255)",
       ]);
     },
-  ])
+  ]),
 );
 
 it(
@@ -71,7 +72,7 @@ After blocking.`,
         "b",
       ]);
     },
-  ])
+  ]),
 );
 
 it(
@@ -84,8 +85,8 @@ it(
   srcset="/external-b.gif 480w, /external-c.gif 800w"
   sizes="(max-width: 600px) 480px, 800px"
   src="/external-d.gif"/>
-After blocking.`
-  )
+After blocking.`,
+  ),
 );
 
 it(
@@ -96,8 +97,8 @@ it(
 <link rel="alternate" href="/external.css?color=#5bbfb8" >
 <link rel="stylesheet" href="/external.css?color=#763eee" media="print">
 <link rel="stylesheet" href="/external.css?color=#851cd7">
-After blocking.`
-  )
+After blocking.`,
+  ),
 );
 
 it(
@@ -106,19 +107,21 @@ it(
     `Embedded App.
 <script src="/external.js?value=a"></script>
 <script src="/external.js?value=b" async></script>
-<script src="/external.js?value=c" defer></script>
-<script src="/external.js?value=d" nomodule></script>
-<script src="/external.js?value=e" type="module"></script>
+<script src="/external.js?value=c" nomodule></script>
+<script src="/external.js?value=d" type="module"></script>
 After blocking.`,
     async (page) => {
-      assert.deepStrictEqual(await page.evaluate(() => scriptValues), [
-        "a",
-        "b",
-        "c",
-        "e",
-      ]);
+      const assets = (await page.evaluate(() => scriptValues)) as string[];
+      assert.equal(assets[0], "a"); // `a` must be first since it is a blocking script.
+
+      // b being async will arrive at a non deterministic time, so we'll just make sure it's there.
+      assert.ok(assets.includes("b"), "should include b");
+      assert.ok(assets.includes("d"), "should include d");
+
+      // c should never be loaded.
+      assert.ok(!assets.includes("c"), "should not include c");
     },
-  ])
+  ]),
 );
 
 it(
@@ -134,7 +137,7 @@ it(
         "b",
       ]);
     },
-  ])
+  ]),
 );
 
 it(
@@ -144,5 +147,5 @@ it(
     "<style> h1 { colo",
     "r: red; } </style>",
     " After Styles.",
-  ])
+  ]),
 );

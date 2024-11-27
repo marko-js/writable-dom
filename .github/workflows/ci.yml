@@ -2,32 +2,80 @@ name: CI
 
 on:
   pull_request:
-    paths-ignore: ["**.md"]
+    types: [opened, synchronize]
   push:
-    branches: ["main"]
-    paths-ignore: ["**.md"]
+    branches: [main]
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event_name == 'pull_request_target' && github.head_ref || github.ref }}"
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: [14.x, 16.x]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Use node@${{ matrix.node }}
-        uses: actions/setup-node@v2
+        uses: actions/checkout@v4
         with:
-          node-version: ${{ matrix.node }}
-          cache: "npm"
+          ref: ${{ github.head_ref }}
+      - name: Use node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Lint code
-        run: npm run lint
-      - name: Install Playwright
-        run: npx playwright install-deps chromium
+      - name: Build
+        run: npm run @ci:build
+      - name: Lint Code
+        run: npm run @ci:lint
+  test:
+    runs-on: ubuntu-latest
+    name: "test: node@${{ matrix.node }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Use node@${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
       - name: Run tests
-        run: npm run ci:test
+        run: npm run @ci:test
       - name: Report code coverage
-        run: npm run ci:report
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+  release:
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: "${{ github.repository_owner == 'marko-js' && github.event_name == 'push' }}"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Release
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npm run @ci:version
+          publish: npm run @ci:release
+          commit: "[ci] release"
+          title: "[ci] release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
