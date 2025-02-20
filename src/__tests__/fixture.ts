@@ -17,6 +17,7 @@ declare const __track__: (html: string) => void;
 declare const writableDOM: typeof import("../index");
 declare let writer: ReturnType<typeof import("../index")>;
 
+const sampleGif = fs.readFileSync(path.join(__dirname, "images/sample.gif"));
 let page: playwright.Page;
 let browser: playwright.Browser | undefined;
 let changes: string[] = [];
@@ -127,9 +128,7 @@ before(async () => {
       /\.gif$/,
       (_url, res) => {
         res.setHeader("Content-Type", "image/gif");
-        fs.createReadStream(path.join(__dirname, "images/sample.gif")).pipe(
-          res,
-        );
+        res.end(sampleGif);
       },
     ],
   ]);
@@ -143,7 +142,7 @@ before(async () => {
   server.on("request", async (req, res) => {
     // Ensure requests processed in order to avoid race conditions loading assets during tests.
     await (pendingRequest = pendingRequest.then(
-      () => new Promise((resolve) => setTimeout(resolve, 500)),
+      () => new Promise((resolve) => setTimeout(resolve, 1000)),
     ));
 
     const url = new URL(req.url!, origin);
@@ -208,9 +207,12 @@ async function waitForPendingRequests(
   let resolve!: () => void;
   const addOne = () => remaining++;
   const finishOne = async () => {
-    // wait a tick to see if new requests start from this one.
-    await page.evaluate(() => {});
-    if (!--remaining) resolve();
+    if (!--remaining) {
+      // wait some time to see if new requests start from this one.
+      await page.evaluate(() => {});
+      await new Promise((r) => setTimeout(r, 200));
+      if (!remaining) resolve();
+    }
   };
   const pending = new Promise<void>((_resolve) => (resolve = _resolve));
 
