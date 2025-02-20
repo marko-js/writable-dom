@@ -1,6 +1,6 @@
 {
   "name": "writable-dom",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Utility to stream HTML content into a live document.",
   "keywords": [
     "dom",
