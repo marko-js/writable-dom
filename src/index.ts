@@ -1,3 +1,8 @@
+enum NodeType {
+  ELEMENT_NODE = 1,
+  TEXT_NODE = 3,
+}
+
 type Writable = {
   write(html: string): void;
   abort(err: Error): void;
@@ -50,22 +55,15 @@ export = function writableDOM(
   const root = (doc.body.firstChild as HTMLTemplateElement).content;
   const walker = doc.createTreeWalker(root);
   const targetNodes = new WeakMap<Node, Node>([[root, target]]);
-  let pendingText: Text | null = null;
+  const targetFragments = new WeakMap<ParentNode, DocumentFragment>();
+  let appendedTargets = new Set<ParentNode>();
   let scanNode: Node | null = null;
   let resolve: void | (() => void);
   let isBlocked = false;
-  let inlineHostNode: Node | null = null;
 
   return {
     write(chunk: string) {
       doc.write(chunk);
-
-      if (pendingText && !inlineHostNode) {
-        // When we left on text, it's possible more text was written to the same node.
-        // here we copy in the final text content from the detached dom to the live dom.
-        (targetNodes.get(pendingText) as Text).data = pendingText.data;
-      }
-
       walk();
     },
     abort() {
@@ -74,22 +72,18 @@ export = function writableDOM(
       }
     },
     close() {
-      const promise = isBlocked
+      return isBlocked
         ? new Promise<void>((_) => (resolve = _))
         : Promise.resolve();
-
-      return promise.then(() => {
-        appendInlineTextIfNeeded(pendingText, inlineHostNode);
-      });
     },
   };
 
   function walk(): void {
+    const startNode = walker.currentNode;
     let node: Node | null;
     if (isBlocked) {
       // If we are blocked, we walk ahead and preload
       // any assets we can ahead of the last checked node.
-      const blockedNode = walker.currentNode;
       if (scanNode) walker.currentNode = scanNode;
 
       while ((node = walker.nextNode())) {
@@ -100,48 +94,76 @@ export = function writableDOM(
         }
       }
 
-      walker.currentNode = blockedNode;
+      walker.currentNode = startNode;
     } else {
-      while ((node = walker.nextNode())) {
-        const clone = document.importNode(node, false);
-        const previousPendingText = pendingText;
-        if (node.nodeType === Node.TEXT_NODE) {
-          pendingText = node as Text;
-        } else {
-          pendingText = null;
-
-          if (isBlocking(clone)) {
-            isBlocked = true;
-            clone.onload = clone.onerror = () => {
-              isBlocked = false;
-              // Continue the normal content injecting walk.
-              if (clone.parentNode) walk();
-            };
+      if (startNode.nodeType === NodeType.TEXT_NODE) {
+        if (isInlineScriptOrStyleTag(startNode.parentNode!)) {
+          if (resolve || walker.nextNode()) {
+            targetNodes
+              .get(startNode.parentNode!)!
+              .appendChild(document.importNode(startNode, false));
+            walker.currentNode = startNode;
           }
-        }
-
-        const parentNode = targetNodes.get(node.parentNode!)!;
-        targetNodes.set(node, clone);
-
-        if (isInlineHost(parentNode!)) {
-          inlineHostNode = parentNode;
         } else {
-          appendInlineTextIfNeeded(previousPendingText, inlineHostNode);
-          inlineHostNode = null;
-
-          if (parentNode === target) {
-            target.insertBefore(clone, nextSibling);
-          } else {
-            parentNode.appendChild(clone);
-          }
+          (targetNodes.get(startNode) as Text).data = (startNode as Text).data;
         }
-
-        // Start walking for preloads.
-        if (isBlocked) return walk();
       }
 
-      // Some blocking content could have prevented load.
-      if (resolve) resolve();
+      while ((node = walker.nextNode())) {
+        if (
+          !resolve &&
+          node.nodeType === NodeType.TEXT_NODE &&
+          isInlineScriptOrStyleTag(node.parentNode!)
+        ) {
+          if (walker.nextNode()) {
+            walker.currentNode = node;
+          } else {
+            break;
+          }
+        }
+
+        const parentNode = targetNodes.get(node.parentNode!) as ParentNode;
+        const clone = document.importNode(node, false);
+        let insertParent: ParentNode = parentNode;
+        targetNodes.set(node, clone);
+
+        if (parentNode.isConnected) {
+          appendedTargets.add(parentNode);
+          (insertParent = targetFragments.get(parentNode)!) ||
+            targetFragments.set(
+              parentNode,
+              (insertParent = new DocumentFragment()),
+            );
+        }
+
+        if (isBlocking(clone)) {
+          isBlocked = true;
+          clone.onload = clone.onerror = () => {
+            isBlocked = false;
+            // Continue the normal content injecting walk.
+            if (clone.parentNode) walk();
+          };
+        }
+
+        insertParent.appendChild(clone);
+        if (isBlocked) break;
+      }
+
+      for (const targetNode of appendedTargets) {
+        targetNode.insertBefore(
+          targetFragments.get(targetNode)!,
+          targetNode === target ? nextSibling : null,
+        );
+      }
+
+      appendedTargets = new Set();
+
+      if (isBlocked) {
+        walk();
+      } else if (resolve) {
+        // Some blocking content could have prevented load.
+        resolve();
+      }
     }
   }
 } as {
@@ -154,7 +176,7 @@ export = function writableDOM(
 
 function isBlocking(node: any): node is HTMLElement {
   return (
-    node.nodeType === Node.ELEMENT_NODE &&
+    node.nodeType === NodeType.ELEMENT_NODE &&
     ((node.tagName === "SCRIPT" &&
       node.src &&
       !(
@@ -171,7 +193,7 @@ function isBlocking(node: any): node is HTMLElement {
 
 function getPreloadLink(node: any) {
   let link: HTMLLinkElement | undefined;
-  if (node.nodeType === Node.ELEMENT_NODE) {
+  if (node.nodeType === NodeType.ELEMENT_NODE) {
     switch (node.tagName) {
       case "SCRIPT":
         if (node.src && !node.noModule) {
@@ -223,16 +245,7 @@ function getPreloadLink(node: any) {
   return link;
 }
 
-function appendInlineTextIfNeeded(
-  pendingText: Text | null,
-  inlineTextHostNode: Node | null,
-) {
-  if (pendingText && inlineTextHostNode) {
-    inlineTextHostNode.appendChild(pendingText);
-  }
-}
-
-function isInlineHost(node: Node) {
+function isInlineScriptOrStyleTag(node: Node) {
   const { tagName } = node as Element;
   return (
     (tagName === "SCRIPT" && !(node as HTMLScriptElement).src) ||
