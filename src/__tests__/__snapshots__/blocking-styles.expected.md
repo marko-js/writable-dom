@@ -108,3 +108,34 @@ Embedded App.
 After blocking.
 ```
 
+# Step 1
+
+```html
+Embedded App.
+<script>
+  window.inlineScriptValues = []
+</script>
+<link
+  rel="stylesheet"
+  href="/external.css?color=rgb(255, 0, 0)"
+>
+<script>
+  inlineScriptValues.push(getComputedStyle(document.body).color);
+</script>
+<link
+  rel="stylesheet"
+  href="/external.css?color=rgb(0, 255, 0)"
+>
+<script>
+  inlineScriptValues.push(getComputedStyle(document.body).color);
+</script>
+<link
+  rel="stylesheet"
+  href="/external.css?color=rgb(0, 0, 255)"
+>
+<script>
+  inlineScriptValues.push(getComputedStyle(document.body).color);
+</script>
+After blocking.
+```
+

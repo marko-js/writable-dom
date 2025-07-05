@@ -31,13 +31,18 @@ export default (step?: Step[] | Step) => {
 
     let snapshot = "";
     let stepId = 0;
-    for (const step of steps) {
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
       await waitForPendingRequests(
         page,
         typeof step === "function"
           ? step
           : () => page.evaluate((step) => writer.write(step), step),
       );
+
+      if (i === steps.length - 1) {
+        await page.evaluate(() => writer.close());
+      }
 
       await new Promise((r) => setTimeout(r, 500));
 
@@ -49,8 +54,6 @@ export default (step?: Step[] | Step) => {
         changes = [];
       }
     }
-
-    await page.evaluate(() => writer.close());
 
     assert.ok(
       !changes.length,
