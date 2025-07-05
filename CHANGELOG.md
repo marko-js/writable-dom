@@ -1,5 +1,15 @@
 # writable-dom
 
+## 1.0.5
+
+### Patch Changes
+
+- [#12](https://github.com/marko-js/writable-dom/pull/12) [`242e990`](https://github.com/marko-js/writable-dom/commit/242e990dec74c227c9e7dcd7bbb9b819a32c97d1) Thanks [@DylanPiercey](https://github.com/DylanPiercey)! - Support blocking=render attribute.
+
+- [#12](https://github.com/marko-js/writable-dom/pull/12) [`242e990`](https://github.com/marko-js/writable-dom/commit/242e990dec74c227c9e7dcd7bbb9b819a32c97d1) Thanks [@DylanPiercey](https://github.com/DylanPiercey)! - Prefer importing new nodes into the target document (better support for writable dom into an iframe).
+
+- [#12](https://github.com/marko-js/writable-dom/pull/12) [`242e990`](https://github.com/marko-js/writable-dom/commit/242e990dec74c227c9e7dcd7bbb9b819a32c97d1) Thanks [@DylanPiercey](https://github.com/DylanPiercey)! - Fix issue with script/style text not inserted if it was the last child of the document.
+
 ## 1.0.4
 
 ### Patch Changes
