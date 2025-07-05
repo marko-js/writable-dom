@@ -50,6 +50,7 @@ export = function writableDOM(
   }
 
   const nextSibling = previousSibling ? previousSibling.nextSibling : null;
+  const owner = target.ownerDocument!;
   const doc = createDocument(target, nextSibling);
   doc.write("<!DOCTYPE html><body><template>");
   const root = (doc.body.firstChild as HTMLTemplateElement).content;
@@ -72,9 +73,10 @@ export = function writableDOM(
       }
     },
     close() {
-      return isBlocked
-        ? new Promise<void>((_) => (resolve = _))
-        : Promise.resolve();
+      return new Promise((_) => {
+        resolve = _;
+        if (!isBlocked) walk();
+      });
     },
   };
 
@@ -87,7 +89,7 @@ export = function writableDOM(
       if (scanNode) walker.currentNode = scanNode;
 
       while ((node = walker.nextNode())) {
-        const link = getPreloadLink((scanNode = node));
+        const link = getPreloadLink((scanNode = node), owner);
         if (link) {
           link.onload = link.onerror = () => target.removeChild(link);
           target.insertBefore(link, nextSibling);
@@ -101,7 +103,7 @@ export = function writableDOM(
           if (resolve || walker.nextNode()) {
             targetNodes
               .get(startNode.parentNode!)!
-              .appendChild(document.importNode(startNode, false));
+              .appendChild(owner.importNode(startNode, false));
             walker.currentNode = startNode;
           }
         } else {
@@ -123,7 +125,7 @@ export = function writableDOM(
         }
 
         const parentNode = targetNodes.get(node.parentNode!) as ParentNode;
-        const clone = document.importNode(node, false);
+        const clone = owner.importNode(node, false);
         let insertParent: ParentNode = parentNode;
         targetNodes.set(node, clone);
 
@@ -132,7 +134,7 @@ export = function writableDOM(
           (insertParent = targetFragments.get(parentNode)!) ||
             targetFragments.set(
               parentNode,
-              (insertParent = new DocumentFragment()),
+              (insertParent = owner.createDocumentFragment()),
             );
         }
 
@@ -177,27 +179,28 @@ export = function writableDOM(
 function isBlocking(node: any): node is HTMLElement {
   return (
     node.nodeType === NodeType.ELEMENT_NODE &&
-    ((node.tagName === "SCRIPT" &&
-      node.src &&
-      !(
-        node.noModule ||
-        node.type === "module" ||
-        node.hasAttribute("async") ||
-        node.hasAttribute("defer")
-      )) ||
+    (node.blocking === "render" ||
+      (node.tagName === "SCRIPT" &&
+        node.src &&
+        !(
+          node.noModule ||
+          node.type === "module" ||
+          node.hasAttribute("async") ||
+          node.hasAttribute("defer")
+        )) ||
       (node.tagName === "LINK" &&
         node.rel === "stylesheet" &&
         (!node.media || matchMedia(node.media).matches)))
   );
 }
 
-function getPreloadLink(node: any) {
+function getPreloadLink(node: any, owner: Document) {
   let link: HTMLLinkElement | undefined;
   if (node.nodeType === NodeType.ELEMENT_NODE) {
     switch (node.tagName) {
       case "SCRIPT":
         if (node.src && !node.noModule) {
-          link = document.createElement("link");
+          link = owner.createElement("link");
           link.href = node.src;
           if (node.getAttribute("type") === "module") {
             link.rel = "modulepreload";
@@ -212,14 +215,14 @@ function getPreloadLink(node: any) {
           node.rel === "stylesheet" &&
           (!node.media || matchMedia(node.media).matches)
         ) {
-          link = document.createElement("link");
+          link = owner.createElement("link");
           link.href = node.href;
           link.rel = "preload";
           link.as = "style";
         }
         break;
       case "IMG":
-        link = document.createElement("link");
+        link = owner.createElement("link");
         link.rel = "preload";
         link.as = "image";
         if (node.srcset) {
