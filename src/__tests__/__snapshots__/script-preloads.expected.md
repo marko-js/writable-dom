@@ -95,3 +95,27 @@ Embedded App.
 After blocking.
 ```
 
+# Step 1
+
+```html
+Embedded App.
+<script src="/external.js?value=a">
+</script>
+<script
+  src="/external.js?value=b"
+  async
+>
+</script>
+<script
+  src="/external.js?value=c"
+  nomodule
+>
+</script>
+<script
+  src="/external.js?value=d"
+  type="module"
+>
+</script>
+After blocking.
+```
+

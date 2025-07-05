@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 20]
+        node: [22]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
