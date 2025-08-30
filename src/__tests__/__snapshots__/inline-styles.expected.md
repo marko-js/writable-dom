@@ -19,6 +19,15 @@ Embedded App.
 <style>
   h1 { color: red; }
 </style>
+```
+
+# Step 3
+
+```html
+Embedded App.
+<style>
+  h1 { color: red; }  h1 { color: red; }
+</style>
 After Styles.
 ```
 

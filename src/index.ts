@@ -57,13 +57,17 @@ export = function writableDOM(
   const walker = doc.createTreeWalker(root);
   const targetNodes = new WeakMap<Node, Node>([[root, target]]);
   const targetFragments = new WeakMap<ParentNode, DocumentFragment>();
+  const isIncomplete = (node: ParentNode) =>
+    !(resolve || node.nextSibling || /<\/\w+>$/.test(curChunk));
   let appendedTargets = new Set<ParentNode>();
   let scanNode: Node | null = null;
   let resolve: void | (() => void);
   let isBlocked = false;
+  let curChunk = "";
 
   return {
     write(chunk: string) {
+      curChunk = chunk;
       doc.write(chunk);
       walk();
     },
@@ -99,41 +103,35 @@ export = function writableDOM(
       walker.currentNode = startNode;
     } else {
       if (startNode.nodeType === NodeType.TEXT_NODE) {
-        if (isInlineScriptOrStyleTag(startNode.parentNode!)) {
-          if (resolve || walker.nextNode()) {
-            targetNodes
-              .get(startNode.parentNode!)!
-              .appendChild(owner.importNode(startNode, false));
-            walker.currentNode = startNode;
-          }
-        } else {
+        if (!isInlineScriptOrStyleTag((node = startNode.parentNode!))) {
           (targetNodes.get(startNode) as Text).data = (startNode as Text).data;
+        } else if (!isIncomplete(node)) {
+          targetNodes
+            .get(node)!
+            .appendChild(owner.importNode(startNode, false));
         }
       }
 
       while ((node = walker.nextNode())) {
+        const parentNode = node.parentNode!;
         if (
-          !resolve &&
           node.nodeType === NodeType.TEXT_NODE &&
-          isInlineScriptOrStyleTag(node.parentNode!)
+          isInlineScriptOrStyleTag(parentNode) &&
+          isIncomplete(parentNode)
         ) {
-          if (walker.nextNode()) {
-            walker.currentNode = node;
-          } else {
-            break;
-          }
+          break;
         }
 
-        const parentNode = targetNodes.get(node.parentNode!) as ParentNode;
+        const cloneParent = targetNodes.get(parentNode) as ParentNode;
         const clone = owner.importNode(node, false);
-        let insertParent: ParentNode = parentNode;
+        let insertParent: ParentNode = cloneParent;
         targetNodes.set(node, clone);
 
-        if (parentNode.isConnected) {
-          appendedTargets.add(parentNode);
-          (insertParent = targetFragments.get(parentNode)!) ||
+        if (cloneParent.isConnected) {
+          appendedTargets.add(cloneParent);
+          (insertParent = targetFragments.get(cloneParent)!) ||
             targetFragments.set(
-              parentNode,
+              cloneParent,
               (insertParent = owner.createDocumentFragment()),
             );
         }
@@ -248,10 +246,11 @@ function getPreloadLink(node: any, owner: Document) {
   return link;
 }
 
-function isInlineScriptOrStyleTag(node: Node) {
-  const { tagName } = node as Element;
+function isInlineScriptOrStyleTag(
+  node: ParentNode,
+): node is HTMLScriptElement | HTMLStyleElement {
   return (
-    (tagName === "SCRIPT" && !(node as HTMLScriptElement).src) ||
-    tagName === "STYLE"
+    (node as Element).tagName === "STYLE" ||
+    ((node as Element).tagName === "SCRIPT" && !(node as HTMLScriptElement).src)
   );
 }

@@ -19,7 +19,6 @@ Embedded App.
 <script>
   scriptValues = ["a", "b"];
 </script>
-After Script.
 ```
 
 # Step 3
@@ -27,7 +26,17 @@ After Script.
 ```html
 Embedded App.
 <script>
-  scriptValues = ["a", "b"];
+  scriptValues = ["a", "b"];scriptValues = ["a", "b"];
+</script>
+After Script.
+```
+
+# Step 4
+
+```html
+Embedded App.
+<script>
+  scriptValues = ["a", "b"];scriptValues = ["a", "b"];
 </script>
 After Script.
 ```
