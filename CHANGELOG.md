@@ -1,5 +1,11 @@
 # writable-dom
 
+## 1.0.6
+
+### Patch Changes
+
+- [#14](https://github.com/marko-js/writable-dom/pull/14) [`b206400`](https://github.com/marko-js/writable-dom/commit/b206400457b6d367e938aef04cf5894e9a977b14) Thanks [@DylanPiercey](https://github.com/DylanPiercey)! - Allow inline script/style tags to be injected without waiting for a nextSibling or final flush. (Checks if last flush ended with the closing tag).
+
 ## 1.0.5
 
 ### Patch Changes
