@@ -186,3 +186,30 @@ for (const [tag, text] of [
     );
   }
 }
+
+for (const [name, chunks] of [
+  ["complete", ["<style>/*</div>*/body{color:red}</style>"]],
+  ["unfinished-rule", ["<style>/*</div>*/body{", "color:red}</style>"]],
+  ["closing-tag-in-comment", ["<style>/*</div>", "*/body{color:red}</style>"]],
+] as const) {
+  it(
+    `inline-style-${name}-preserves-growing-text`,
+    fixture(async (page) => {
+      const result = await page.evaluate(async (chunks) => {
+        for (const chunk of chunks) writer.write(chunk);
+        await writer.close();
+        const style = document.body.querySelector("style")!;
+        return {
+          text: style.textContent,
+          childCount: style.childNodes.length,
+          color: getComputedStyle(document.body).color,
+        };
+      }, chunks);
+      assert.deepStrictEqual(result, {
+        text: "/*</div>*/body{color:red}",
+        childCount: 1,
+        color: "rgb(255, 0, 0)",
+      });
+    }),
+  );
+}

@@ -105,10 +105,15 @@ export = function writableDOM(
       if (startNode.nodeType === NodeType.TEXT_NODE) {
         if (!isInlineScriptOrStyleTag((node = startNode.parentNode!))) {
           (targetNodes.get(startNode) as Text).data = (startNode as Text).data;
-        } else if (!isIncomplete(node) && !targetNodes.has(startNode)) {
-          const clone = owner.importNode(startNode, false);
-          targetNodes.set(startNode, clone);
-          targetNodes.get(node)!.appendChild(clone);
+        } else if (!isIncomplete(node)) {
+          const clone = targetNodes.get(startNode) as Text | undefined;
+          if (clone) {
+            clone.data = (startNode as Text).data;
+          } else {
+            const newClone = owner.importNode(startNode, false);
+            targetNodes.set(startNode, newClone);
+            targetNodes.get(node)!.appendChild(newClone);
+          }
         }
       }
 
