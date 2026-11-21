@@ -57,17 +57,29 @@ export = function writableDOM(
   const walker = doc.createTreeWalker(root);
   const targetNodes = new WeakMap<Node, Node>([[root, target]]);
   const targetFragments = new WeakMap<ParentNode, DocumentFragment>();
-  const isIncomplete = (node: ParentNode) =>
-    !(resolve || node.nextSibling || /<\/\w+>$/.test(curChunk));
+  const isIncomplete = (node: ParentNode) => {
+    if (resolve || node.nextSibling) return false;
+    // An end tag in raw script/style text is not a parser boundary. Only use
+    // the trailing tag when the browser consumed it rather than emitting it
+    // into this text node (including script's double-escaped state). If the
+    // suffix is ambiguous, wait for a following sibling or the end of input.
+    return (
+      !/^<\/[a-z][a-z0-9:-]*[\t\n\f\r ]*>$/i.test(endTag) ||
+      (node.lastChild as Text).data.endsWith(endTag.replace(/\r\n?/g, "\n"))
+    );
+  };
   let appendedTargets = new Set<ParentNode>();
   let scanNode: Node | null = null;
   let resolve: void | (() => void);
   let isBlocked = false;
-  let curChunk = "";
+  let endTag = "";
 
   return {
     write(chunk: string) {
-      curChunk = chunk;
+      const tagStart = chunk.lastIndexOf("<");
+      endTag = tagStart < 0 ? endTag + chunk : chunk.slice(tagStart);
+      // Retain only a possible trailing end tag, including tags split across writes.
+      if (!/^<(?:\/[a-z0-9:-]*[\t\n\f\r ]*>?)?$/i.test(endTag)) endTag = "";
       doc.write(chunk);
       walk();
     },

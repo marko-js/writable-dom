@@ -5,7 +5,7 @@ import fixture from "./fixture";
 declare const writer: ReturnType<typeof import("../index")>;
 
 declare const scriptValues: unknown[];
-declare const inlineScriptValues: unknown[];
+declare let inlineScriptValues: unknown[];
 
 it("stream-text", fixture(["Hello", "World"]));
 
@@ -194,22 +194,103 @@ for (const [name, chunks] of [
 ] as const) {
   it(
     `inline-style-${name}-preserves-growing-text`,
-    fixture(async (page) => {
-      const result = await page.evaluate(async (chunks) => {
-        for (const chunk of chunks) writer.write(chunk);
-        await writer.close();
-        const style = document.body.querySelector("style")!;
-        return {
-          text: style.textContent,
-          childCount: style.childNodes.length,
-          color: getComputedStyle(document.body).color,
-        };
-      }, chunks);
-      assert.deepStrictEqual(result, {
-        text: "/*</div>*/body{color:red}",
-        childCount: 1,
-        color: "rgb(255, 0, 0)",
-      });
-    }),
+    fixture([
+      async (page) => {
+        await page.evaluate((chunk) => writer.write(chunk), chunks[0]);
+        if (chunks.length > 1) {
+          assert.equal(
+            await page.evaluate(
+              () => document.body.querySelector("style")!.textContent,
+            ),
+            "",
+          );
+        }
+      },
+      async (page) => {
+        const result = await page.evaluate(async (chunks) => {
+          for (const chunk of chunks.slice(1)) writer.write(chunk);
+          await writer.close();
+          const style = document.body.querySelector("style")!;
+          return {
+            text: style.textContent,
+            childCount: style.childNodes.length,
+            color: getComputedStyle(document.body).color,
+          };
+        }, chunks);
+        assert.deepStrictEqual(result, {
+          text: "/*</div>*/body{color:red}",
+          childCount: 1,
+          color: "rgb(255, 0, 0)",
+        });
+      },
+    ]),
+  );
+}
+
+for (const [name, chunks] of [
+  [
+    "other-end-tag-in-comment",
+    [
+      '<script>inlineScriptValues.push("first"); //</div>',
+      '\ninlineScriptValues.push("last");</script>',
+    ],
+  ],
+  [
+    "split-end-tag",
+    ['<script>inlineScriptValues.push("first", "last");</scr', "ipt>"],
+  ],
+  [
+    "mixed-case-split-end-tag-with-whitespace",
+    ['<script>inlineScriptValues.push("first", "last");</ScR', "IpT \r\n>"],
+  ],
+  [
+    "closing-parent-boundary",
+    ['<h1><script>inlineScriptValues.push("first", "last");', "</script></h1>"],
+  ],
+  [
+    "double-escaped-end-tag",
+    [
+      '<script><!--\ninlineScriptValues.push("first"); //<script></script>',
+      '\ninlineScriptValues.push("last");\n//-->\n</script>',
+    ],
+  ],
+] as const) {
+  it(
+    `inline-script-${name}-executes-only-when-complete`,
+    fixture([
+      async (page) => {
+        await page.evaluate((chunk) => {
+          inlineScriptValues = [];
+          writer.write(chunk);
+        }, chunks[0]);
+        assert.deepStrictEqual(
+          await page.evaluate(() => inlineScriptValues),
+          [],
+        );
+      },
+      async (page) => {
+        await page.evaluate((chunk) => writer.write(chunk), chunks[1]);
+        assert.deepStrictEqual(await page.evaluate(() => inlineScriptValues), [
+          "first",
+          "last",
+        ]);
+      },
+      async (page) => {
+        await page.evaluate(async () => {
+          writer.write("");
+          await writer.close();
+        });
+        assert.deepStrictEqual(await page.evaluate(() => inlineScriptValues), [
+          "first",
+          "last",
+        ]);
+        assert.equal(
+          await page.evaluate(
+            () => document.body.querySelector("script")!.childNodes.length,
+          ),
+          1,
+        );
+      },
+    ]),
   );
 }
