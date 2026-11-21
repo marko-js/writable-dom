@@ -105,10 +105,10 @@ export = function writableDOM(
       if (startNode.nodeType === NodeType.TEXT_NODE) {
         if (!isInlineScriptOrStyleTag((node = startNode.parentNode!))) {
           (targetNodes.get(startNode) as Text).data = (startNode as Text).data;
-        } else if (!isIncomplete(node)) {
-          targetNodes
-            .get(node)!
-            .appendChild(owner.importNode(startNode, false));
+        } else if (!isIncomplete(node) && !targetNodes.has(startNode)) {
+          const clone = owner.importNode(startNode, false);
+          targetNodes.set(startNode, clone);
+          targetNodes.get(node)!.appendChild(clone);
         }
       }
 

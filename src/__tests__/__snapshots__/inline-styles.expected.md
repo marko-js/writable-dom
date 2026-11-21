@@ -26,7 +26,7 @@ Embedded App.
 ```html
 Embedded App.
 <style>
-  h1 { color: red; }  h1 { color: red; }
+  h1 { color: red; }
 </style>
 After Styles.
 ```

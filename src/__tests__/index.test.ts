@@ -2,6 +2,8 @@ import assert from "assert";
 
 import fixture from "./fixture";
 
+declare const writer: ReturnType<typeof import("../index")>;
+
 declare const scriptValues: unknown[];
 declare const inlineScriptValues: unknown[];
 
@@ -151,3 +153,36 @@ it(
     " After Styles.",
   ]),
 );
+
+// Exercise the same node again when a later write or close resumes traversal.
+for (const [tag, text] of [
+  ["style", ".x{color:red}"],
+  ["script", 'window.inlineScriptValues = ["once"];'],
+]) {
+  for (const [name, chunks] of [
+    ["complete", [`<${tag}>${text}</${tag}>`]],
+    ["split", [`<${tag}>${text.slice(0, 5)}`, `${text.slice(5)}</${tag}>`]],
+    ["unterminated", [`<${tag}>${text}`]],
+  ] as const) {
+    it(
+      `inline-${tag}-${name}-text-once`,
+      fixture(async (page) => {
+        const result = await page.evaluate(
+          async ({ tag, chunks }) => {
+            for (const chunk of chunks) writer.write(chunk);
+            // Resume once more before close, without advancing to another node.
+            writer.write("");
+            await writer.close();
+            const element = document.body.querySelector(tag)!;
+            return {
+              text: element.textContent,
+              childCount: element.childNodes.length,
+            };
+          },
+          { tag, chunks },
+        );
+        assert.deepStrictEqual(result, { text, childCount: 1 });
+      }),
+    );
+  }
+}
