@@ -106,9 +106,16 @@ export = function writableDOM(
         if (!isInlineScriptOrStyleTag((node = startNode.parentNode!))) {
           (targetNodes.get(startNode) as Text).data = (startNode as Text).data;
         } else if (!isIncomplete(node)) {
-          targetNodes
-            .get(node)!
-            .appendChild(owner.importNode(startNode, false));
+          // A later write can extend an already-copied text node.
+          // Update its clone instead of appending a duplicate or skipping the new text.
+          const clone = targetNodes.get(startNode) as Text | undefined;
+          if (clone) {
+            clone.data = (startNode as Text).data;
+          } else {
+            const newClone = owner.importNode(startNode, false);
+            targetNodes.set(startNode, newClone);
+            targetNodes.get(node)!.appendChild(newClone);
+          }
         }
       }
 

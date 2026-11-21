@@ -26,7 +26,7 @@ Embedded App.
 ```html
 Embedded App.
 <script>
-  scriptValues = ["a", "b"];scriptValues = ["a", "b"];
+  scriptValues = ["a", "b"];
 </script>
 After Script.
 ```
@@ -36,7 +36,7 @@ After Script.
 ```html
 Embedded App.
 <script>
-  scriptValues = ["a", "b"];scriptValues = ["a", "b"];
+  scriptValues = ["a", "b"];
 </script>
 After Script.
 ```
