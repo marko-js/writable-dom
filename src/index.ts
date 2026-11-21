@@ -57,72 +57,26 @@ export = function writableDOM(
   const walker = doc.createTreeWalker(root);
   const targetNodes = new WeakMap<Node, Node>([[root, target]]);
   const targetFragments = new WeakMap<ParentNode, DocumentFragment>();
-  // Native parsing can insert nodes before earlier siblings (table foster
-  // parenting), so consume parser additions rather than advancing a tree cursor.
-  const parserAdditions = new MutationObserver(() => {});
-  const seenInline = new WeakSet<Node>();
-  const completedInline = new WeakSet<ParentNode>();
-  let inline: { node: Element; consume: (chunk: string) => number } | undefined;
   const isIncomplete = (node: ParentNode) =>
-    !(resolve || node.nextSibling || completedInline.has(node));
+    !(resolve || node.nextSibling || /<\/\w+>$/.test(curChunk));
   let appendedTargets = new Set<ParentNode>();
   let scanNode: Node | null = null;
   let resolve: void | (() => void);
   let isBlocked = false;
+  let curChunk = "";
 
   return {
     write(chunk: string) {
-      // Let the native parser establish element starts. Splitting at token
-      // terminators lets us start tracking raw text immediately after its opener,
-      // without interpreting comments, attributes, or surrounding HTML ourselves.
-      let start = 0;
-      while (start < chunk.length) {
-        const trackOpening = !inline;
-        let end: number;
-        if (inline) {
-          const consumed = inline.consume(chunk.slice(start));
-          end = consumed < 0 ? chunk.length : start + consumed;
-          if (consumed >= 0) {
-            completedInline.add(inline.node);
-            inline = undefined;
-          }
-        } else {
-          const delimiter = chunk.indexOf(">", start);
-          end = delimiter < 0 ? chunk.length : delimiter + 1;
-        }
-        // Only an opening-token segment can create a new raw-text element.
-        // The raw body is processed in bulk without mutation-record overhead.
-        if (trackOpening)
-          parserAdditions.observe(root, { childList: true, subtree: true });
-        doc.write(chunk.slice(start, end));
-        for (const record of parserAdditions.takeRecords()) {
-          record.addedNodes.forEach((node) => {
-            if (
-              node.nodeType === NodeType.ELEMENT_NODE &&
-              isInlineScriptOrStyleTag(node as Element) &&
-              !seenInline.has(node)
-            ) {
-              seenInline.add(node);
-              inline = {
-                node: node as Element,
-                consume: inlineTextBoundary((node as Element).tagName),
-              };
-            }
-          });
-        }
-        parserAdditions.disconnect();
-        start = end;
-      }
+      curChunk = chunk;
+      doc.write(chunk);
       walk();
     },
     abort() {
-      parserAdditions.disconnect();
       if (isBlocked) {
         (targetNodes.get(walker.currentNode) as Element).remove();
       }
     },
     close() {
-      parserAdditions.disconnect();
       return new Promise((_) => {
         resolve = _;
         if (!isBlocked) walk();
@@ -151,10 +105,15 @@ export = function writableDOM(
       if (startNode.nodeType === NodeType.TEXT_NODE) {
         if (!isInlineScriptOrStyleTag((node = startNode.parentNode!))) {
           (targetNodes.get(startNode) as Text).data = (startNode as Text).data;
-        } else if (!isIncomplete(node) && !targetNodes.has(startNode)) {
-          const clone = owner.importNode(startNode, false);
-          targetNodes.set(startNode, clone);
-          targetNodes.get(node)!.appendChild(clone);
+        } else if (!isIncomplete(node)) {
+          const clone = targetNodes.get(startNode) as Text | undefined;
+          if (clone) {
+            clone.data = (startNode as Text).data;
+          } else {
+            const newClone = owner.importNode(startNode, false);
+            targetNodes.set(startNode, newClone);
+            targetNodes.get(node)!.appendChild(newClone);
+          }
         }
       }
 
@@ -298,166 +257,5 @@ function isInlineScriptOrStyleTag(
   return (
     (node as Element).tagName === "STYLE" ||
     ((node as Element).tagName === "SCRIPT" && !(node as HTMLScriptElement).src)
-  );
-}
-
-/**
- * Tracks the HTML raw-text and script escaped/double-escaped states.
- * Returns the offset after a closing tag, or -1 when more input is needed.
- * https://html.spec.whatwg.org/multipage/parsing.html#tokenization
- */
-function inlineTextBoundary(tagName: string) {
-  const script = tagName === "SCRIPT";
-  const name = tagName.toLowerCase();
-  let mode: "data" | "escaped" | "double-escaped" = "data";
-  let pending: "" | "<" | "</" | "<!" | "<!-" | "word" | "end-word" = "";
-  let word = "";
-  let dashes = 0;
-  let attribute:
-    | ""
-    | "before"
-    | "name"
-    | "after-name"
-    | "value"
-    | "unquoted"
-    | "quoted"
-    | "after-value"
-    | "self-closing" = "";
-  let quote = "";
-
-  return (chunk: string): number => {
-    for (let offset = 0; offset < chunk.length; offset++) {
-      // Ordinary raw text cannot change state until a less-than sign. Skip it
-      // in one pass rather than splitting large scripts at every greater-than.
-      if (!attribute && !pending && mode === "data") {
-        offset = chunk.indexOf("<", offset);
-        if (offset < 0) return -1;
-      }
-      const char = chunk[offset];
-      let reconsume = true;
-      while (reconsume) {
-        reconsume = false;
-        if (attribute) {
-          if (attribute === "quoted") {
-            if (char === quote) attribute = "after-value";
-          } else if (char === ">") {
-            return offset + 1;
-          } else if (attribute === "value") {
-            if (char === '"' || char === "'") {
-              quote = char;
-              attribute = "quoted";
-            } else if (!htmlSpace(char)) attribute = "unquoted";
-          } else if (attribute === "unquoted") {
-            if (htmlSpace(char)) attribute = "before";
-          } else if (
-            attribute === "after-value" ||
-            attribute === "self-closing"
-          ) {
-            attribute = "before";
-            reconsume = true;
-          } else if (char === "/") {
-            attribute = "self-closing";
-          } else if (char === "=" && attribute !== "before") {
-            attribute = "value";
-          } else if (htmlSpace(char)) {
-            if (attribute === "name") attribute = "after-name";
-          } else {
-            attribute = "name";
-          }
-          continue;
-        }
-
-        if (pending) {
-          if (pending === "<") {
-            if (char === "/") pending = "</";
-            else if (script && mode === "data" && char === "!") pending = "<!";
-            else if (script && mode === "escaped" && asciiLetter(char)) {
-              pending = "word";
-              word = char.toLowerCase();
-            } else {
-              pending = "";
-              reconsume = true;
-            }
-          } else if (pending === "<!" || pending === "<!-") {
-            if (char === "-") {
-              if (pending === "<!-") {
-                mode = "escaped";
-                dashes = 2;
-                pending = "";
-              } else pending = "<!-";
-            } else {
-              pending = "";
-              reconsume = true;
-            }
-          } else if (pending === "</") {
-            if (asciiLetter(char)) {
-              pending = "end-word";
-              word = char.toLowerCase();
-            } else {
-              pending = "";
-              reconsume = true;
-            }
-          } else if (asciiLetter(char)) {
-            // Only "script" and "style" can match; bound storage for long names.
-            if (word.length <= 6) word += char.toLowerCase();
-          } else {
-            const delimiter = htmlSpace(char) || char === "/" || char === ">";
-            if (
-              delimiter &&
-              pending === "end-word" &&
-              mode !== "double-escaped" &&
-              word === name
-            ) {
-              if (char === ">") return offset + 1;
-              attribute = char === "/" ? "self-closing" : "before";
-            } else if (
-              delimiter &&
-              script &&
-              word === "script" &&
-              pending === "word"
-            ) {
-              mode = "double-escaped";
-            } else if (
-              delimiter &&
-              script &&
-              word === "script" &&
-              mode === "double-escaped"
-            ) {
-              mode = "escaped";
-            } else {
-              reconsume = true;
-            }
-            pending = "";
-          }
-          continue;
-        }
-
-        if (char === "<") {
-          pending = "<";
-          dashes = 0;
-        } else if (mode !== "data" && char === "-") {
-          dashes = Math.min(2, dashes + 1);
-        } else {
-          if (mode !== "data" && char === ">" && dashes === 2) mode = "data";
-          dashes = 0;
-        }
-      }
-    }
-    return -1;
-  };
-}
-
-function asciiLetter(char: string): boolean {
-  const code = char.charCodeAt(0) | 32;
-  return code >= 97 && code <= 122;
-}
-
-function htmlSpace(char: string): boolean {
-  return (
-    char === " " ||
-    char === "\t" ||
-    char === "\n" ||
-    char === "\r" ||
-    char === "\f"
   );
 }

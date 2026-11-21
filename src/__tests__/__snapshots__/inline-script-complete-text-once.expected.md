@@ -2,7 +2,7 @@
 
 ```html
 <script>
-  window.inlineScriptValues = ["once"];
+  window.inlineScriptValues.push("once");
 </script>
 ```
 
