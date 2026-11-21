@@ -17,15 +17,3 @@ inlineScriptValues.push("last");
 //-->
 ```
 
-# Step 2
-
-```html
-<script>
-  <!--
-inlineScriptValues.push("first"); //
-  <script>
-</script>
-inlineScriptValues.push("last");
-//-->
-```
-

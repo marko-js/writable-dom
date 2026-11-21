@@ -2,6 +2,8 @@ import assert from "assert";
 
 import fixture from "./fixture";
 
+declare const writableDOM: typeof import("../index");
+
 declare const writer: ReturnType<typeof import("../index")>;
 
 declare const scriptValues: unknown[];
@@ -248,6 +250,48 @@ for (const [name, chunks] of [
     ['<h1><script>inlineScriptValues.push("first", "last");', "</script></h1>"],
   ],
   [
+    "reconstructed-formatting-before-quoted-opener",
+    [
+      "<p><b>one</p>",
+      'two<script data-note=">">inlineScriptValues.push("first", "last");</script>',
+    ],
+  ],
+  [
+    "foster-parented-script",
+    [
+      "",
+      '<table><div><script>inlineScriptValues.push("first", "last");</script></div></table>',
+    ],
+  ],
+  [
+    "single-write-identical-text-and-closing-tag",
+    [
+      "",
+      '<script><!--\ninlineScriptValues.push("first", "last"); //<script></script></script>',
+    ],
+  ],
+  [
+    "quoted-end-tag-attribute",
+    [
+      '<script>inlineScriptValues.push("first", "last");</script data-note=">',
+      '">',
+    ],
+  ],
+  [
+    "quoted-start-tag-attribute",
+    [
+      '<script data-note=">',
+      '">inlineScriptValues.push("first", "last");</script>',
+    ],
+  ],
+  [
+    "identical-text-and-closing-tag",
+    [
+      '<script><!--\ninlineScriptValues.push("first", "last"); //<script></script>',
+      "</script>",
+    ],
+  ],
+  [
     "double-escaped-end-tag",
     [
       '<script><!--\ninlineScriptValues.push("first"); //<script></script>',
@@ -294,3 +338,80 @@ for (const [name, chunks] of [
     ]),
   );
 }
+
+it(
+  "inline-boundaries-match-native-parser",
+  fixture(async (page) => {
+    const failures = await page.evaluate(async () => {
+      const failures: object[] = [];
+      for (const tag of ["script", "style"]) {
+        for (const text of [
+          "abc",
+          "/*</div>",
+          "<!--",
+          "<!--<script>",
+          "<!--<script></script>",
+          "<!--<script>-->",
+          "<!--x--",
+          "<!--<script>--",
+          "<",
+          "</",
+          "<!--<scripted>",
+          "<!--<SCRIPT / >",
+        ]) {
+          for (const end of [
+            "",
+            `</${tag}>`,
+            `</${tag.toUpperCase()} \n>`,
+            `</${tag} a=">">`,
+            `</${tag} a='>'>`,
+            `</${tag} a=xx>`,
+            `</${tag} a" >`,
+            `</${tag}/>`,
+            `</${tag} a='>`,
+            `</${tag} a=`,
+            `</${tag}x>`,
+          ]) {
+            for (const prefix of [
+              "",
+              "<div></div>",
+              "<!--<script>ignored</script>-->",
+              '<div data-value="<script>"></div>',
+              "<textarea><script>ignored</script></textarea>",
+            ]) {
+              const html = `${prefix}<${tag} type="text/plain">${text}${end}`;
+              const reference = document.createElement("template");
+              // A marker outside the raw-text element proves the native parser
+              // consumed a closing tag, rather than merely closing it at EOF.
+              reference.innerHTML = html + "<b data-boundary-probe></b>";
+              const expected = reference.content.querySelector(
+                "[data-boundary-probe]",
+              )
+                ? reference.content.querySelector(tag)!.textContent
+                : "";
+              for (const chunks of [[html], html.split("")]) {
+                const target = document.body.appendChild(
+                  document.createElement("div"),
+                );
+                const stream = writableDOM(target);
+                for (const chunk of chunks) stream.write(chunk);
+                const actual = target.querySelector(tag)?.textContent ?? "";
+                if (actual !== expected)
+                  failures.push({
+                    html,
+                    chunks: chunks.length,
+                    expected,
+                    actual,
+                  });
+                await stream.close();
+                target.remove();
+              }
+            }
+          }
+        }
+      }
+      return failures;
+    });
+    assert.deepStrictEqual(failures, []);
+  }),
+);

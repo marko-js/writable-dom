@@ -17,13 +17,3 @@
 </h1>
 ```
 
-# Step 2
-
-```html
-<h1>
-  <script>
-    inlineScriptValues.push("first", "last");
-  </script>
-</h1>
-```
-

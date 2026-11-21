@@ -13,11 +13,3 @@
 </script>
 ```
 
-# Step 2
-
-```html
-<script>
-  inlineScriptValues.push("first", "last");
-</script>
-```
-

@@ -15,13 +15,3 @@ inlineScriptValues.push("last");
 </script>
 ```
 
-# Step 2
-
-```html
-<script>
-  inlineScriptValues.push("first"); //
-  </div>
-inlineScriptValues.push("last");
-</script>
-```
-
